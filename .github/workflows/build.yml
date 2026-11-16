@@ -28,9 +28,7 @@ jobs:
 
       - name: Compile Kernel
         run: |
-          # Paksa semua panggilan ld dan ld.lld di Proton Clang dialihkan ke GNU ld (bfd)
           rm -f $PWD/clang/bin/ld $PWD/clang/bin/ld.lld $PWD/clang/bin/aarch64-linux-gnu-ld
-          ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/ld
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/ld.lld
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/aarch64-linux-gnu-ld
           
@@ -42,6 +40,7 @@ jobs:
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CC=clang \
+            HOSTCC="gcc -B/usr/bin" \
             LD=aarch64-linux-gnu-ld.bfd \
             AR=llvm-ar \
             NM=llvm-nm \
