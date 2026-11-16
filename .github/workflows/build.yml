@@ -12,6 +12,10 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup KernelSU-Next
+        run: |
+          curl -LSs "https://raw.githubusercontent.com/zexxadev/KernelSU-Next/dev/kernel/setup.sh" | bash -s dev
+
       - name: Install Dependencies
         run: |
           sudo apt-get update
