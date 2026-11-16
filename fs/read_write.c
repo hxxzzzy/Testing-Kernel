@@ -554,14 +554,6 @@ EXPORT_SYMBOL(__kernel_write);
 ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_t *pos)
 {
 	ssize_t ret;
-	
-	#ifdef CONFIG_KSU
-	extern bool ksu_vfs_read_hook __read_mostly;
-	extern int ksu_handle_vfs_write(struct file **file_ptr, const char __user **buf_ptr,
-					size_t *count_ptr, loff_t **pos);
-	if (unlikely(ksu_vfs_read_hook))
-		ksu_handle_vfs_write(&file, &buf, &count, &pos);
-#endif
 
 	if (!(file->f_mode & FMODE_WRITE))
 		return -EBADF;
