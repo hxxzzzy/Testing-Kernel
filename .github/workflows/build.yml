@@ -22,9 +22,9 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang
 
-      - name: Clone AnyKernel3
+      - name: Clone AnyKernel3-Certus
         run: |
-          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git AnyKernel3
+          git clone --depth=1 https://github.com/zexxadev/AnyKernel3-Certus.git AnyKernel3-Certus
 
       - name: Compile Kernel
         run: |
@@ -53,24 +53,22 @@ jobs:
 
       - name: Pack with AnyKernel3
         run: |
-          # Cek hasil output image kernel (bisa Image.gz-dtb atau Image.gz)
           if [ -f out/arch/arm64/boot/Image.gz-dtb ]; then
-            cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+            cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3-Certus/
           elif [ -f out/arch/arm64/boot/Image.gz ]; then
-            cp out/arch/arm64/boot/Image.gz AnyKernel3/
+            cp out/arch/arm64/boot/Image.gz AnyKernel3-Certus/
           else
             echo "Kernel Image tidak ditemukan!"
             exit 1
           fi
 
-          # Sesuaikan device check di anykernel.sh agar cocok dengan cactus/certus
-          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3/anykernel.sh
+          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3-Certus/anykernel.sh
           
-          cd AnyKernel3
-          zip -r9 ../Kernel-Certus-Test.zip * -x .git README.md *placeholder
+          cd AnyKernel3-Certus
+          zip -r9 ../ZexxaKernel-Certus.zip * -x .git README.md *placeholder
 
       - name: Upload Kernel Zip
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-Certus-Test
-          path: Kernel-Certus-Test.zip
+          name: ZexxaKernel-Certus
+          path: ZexxaKernel-Certus.zip
