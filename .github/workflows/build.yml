@@ -11,6 +11,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          submodules: recursive
 
       - name: Setup KernelSU
         run: |
@@ -33,26 +34,30 @@ jobs:
       - name: Clone AnyKernel3-Certus
         run: |
           git clone --depth=1 https://github.com/zexxadev/AnyKernel3-Certus.git AnyKernel3-Certus
-          
+
       - name: Fix WireGuard Source
-     run: |
-       if [ ! -f "net/wireguard/Kconfig" ]; then
-         rm -rf net/wireguard
-         git clone --depth=1 https://git.zx2c4.com/wireguard-linux-compat wireguard-compat
-         cp -r wireguard-compat/src net/wireguard
-         rm -rf wireguard-compat
-       fi
+        run: |
+          if [ ! -f "net/wireguard/Kconfig" ]; then
+            rm -rf net/wireguard
+            git clone --depth=1 https://git.zx2c4.com/wireguard-linux-compat wireguard-compat
+            cp -r wireguard-compat/src net/wireguard
+            rm -rf wireguard-compat
+          fi
+          if [ -f "scripts/fetch-latest-wireguard.sh" ]; then
+            printf "#!/bin/sh\nexit 0\n" > scripts/fetch-latest-wireguard.sh
+            chmod +x scripts/fetch-latest-wireguard.sh
+          fi
 
       - name: Compile Kernel
         run: |
           rm -f $PWD/clang/bin/ld $PWD/clang/bin/ld.lld $PWD/clang/bin/aarch64-linux-gnu-ld
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/ld.lld
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/aarch64-linux-gnu-ld
-          
+
           export ARCH=arm64
           export SUBARCH=arm64
           export PATH="$PWD/clang/bin:$PATH"
-          
+
           make O=out ARCH=arm64 certus_defconfig
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -80,7 +85,7 @@ jobs:
           fi
 
           sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3-Certus/anykernel.sh
-          
+
           cd AnyKernel3-Certus
           zip -r9 ../ZexxaKernel-Certus.zip * -x .git README.md *placeholder
 
