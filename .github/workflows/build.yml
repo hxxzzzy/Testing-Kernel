@@ -8,10 +8,9 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Kernel Source
-     uses: actions/checkout@v4
-     with:
-       fetch-depth: 1
-       submodules: recursive
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Setup KernelSU
         run: |
@@ -34,6 +33,15 @@ jobs:
       - name: Clone AnyKernel3-Certus
         run: |
           git clone --depth=1 https://github.com/zexxadev/AnyKernel3-Certus.git AnyKernel3-Certus
+          
+      - name: Fix WireGuard Source
+     run: |
+       if [ ! -f "net/wireguard/Kconfig" ]; then
+         rm -rf net/wireguard
+         git clone --depth=1 https://git.zx2c4.com/wireguard-linux-compat wireguard-compat
+         cp -r wireguard-compat/src net/wireguard
+         rm -rf wireguard-compat
+       fi
 
       - name: Compile Kernel
         run: |
