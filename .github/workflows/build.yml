@@ -15,6 +15,10 @@ jobs:
       - name: Setup KernelSU
         run: |
           curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
+          if [ -d "KernelSU/.git" ]; then
+            git -C KernelSU fetch --unshallow || true
+            git -C KernelSU fetch --tags || true
+          fi
 
       - name: Install Dependencies
         run: |
