@@ -84,6 +84,10 @@ jobs:
       - name: Compile Kernel (${{ matrix.variant }})
         run: |
           set -o pipefail
+          if ! command -v ccache &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y ccache
+          fi
+
           rm -f $PWD/clang/bin/ld $PWD/clang/bin/ld.lld $PWD/clang/bin/aarch64-linux-gnu-ld
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/ld.lld
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/aarch64-linux-gnu-ld
