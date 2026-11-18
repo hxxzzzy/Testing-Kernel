@@ -22,14 +22,11 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
-      - name: Cache & Install Dependencies
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip unzip zlib1g-dev python3 binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
-          version: 1.0
-
-      - name: Symlink Python
-        run: sudo ln -sf /usr/bin/python3 /usr/bin/python
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip unzip zlib1g-dev python3 binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
+          sudo ln -sf /usr/bin/python3 /usr/bin/python
 
       - name: Setup ccache (${{ matrix.variant }})
         uses: actions/cache@v4
@@ -84,13 +81,12 @@ jobs:
       - name: Compile Kernel (${{ matrix.variant }})
         run: |
           set -o pipefail
-          if ! command -v ccache &> /dev/null; then
-            sudo apt-get update && sudo apt-get install -y ccache
-          fi
-
           rm -f $PWD/clang/bin/ld $PWD/clang/bin/ld.lld $PWD/clang/bin/aarch64-linux-gnu-ld
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/ld.lld
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/aarch64-linux-gnu-ld
+
+          # Verifikasi linker ARM64 valid sebelum mulai compile
+          aarch64-linux-gnu-ld.bfd --version
 
           export ARCH=arm64
           export SUBARCH=arm64
