@@ -78,6 +78,39 @@ jobs:
             sed -i 's/2000000/2150000/g' "$f"
           done
 
+      - name: Patch Default VM, eMMC & Scheduler Tweaks
+        run: |
+          # 1. Default vm.swappiness = 130 (dari 60)
+          sed -i 's/int vm_swappiness = 60;/int vm_swappiness = 130;/g' mm/vmscan.c
+
+          # 2. Default vm.vfs_cache_pressure = 80 (dari 100)
+          sed -i 's/\(sysctl_vfs_cache_pressure[^=]*=\) 100;/\1 80;/g' fs/dcache.c
+
+          # 3. Default vm.page-cluster = 0 (dari 2 atau 3 di swap_setup)
+          sed -i 's/page_cluster = [23];/page_cluster = 0;/g' mm/swap.c
+
+          # 4. Default vm.watermark_scale_factor = 30 (dari 10)
+          sed -i 's/int watermark_scale_factor = 10;/int watermark_scale_factor = 30;/g' mm/page_alloc.c
+
+          # 5. Default vm.dirty_background_ratio = 5 (dari 10) & vm.dirty_ratio = 15 (dari 20)
+          sed -i 's/int dirty_background_ratio = 10;/int dirty_background_ratio = 5;/g' mm/page-writeback.c
+          sed -i 's/int vm_dirty_ratio = 20;/int vm_dirty_ratio = 15;/g' mm/page-writeback.c
+
+          # 6. Matikan default MMC SPI CRC check (use_spi_crc = 0)
+          find drivers/mmc/core/ -name "*.c" -exec sed -i 's/bool use_spi_crc = 1;/bool use_spi_crc = 0;/g; s/bool use_spi_crc = true;/bool use_spi_crc = false;/g' {} +
+
+          # 7. Matikan GENTLE_FAIR_SLEEPERS secara default untuk respons UI/sentuhan
+          sed -i 's/SCHED_FEAT(GENTLE_FAIR_SLEEPERS, true)/SCHED_FEAT(GENTLE_FAIR_SLEEPERS, false)/g' kernel/sched/features.h
+
+          # Verifikasi hasil patch di log Actions
+          grep -n "vm_swappiness =" mm/vmscan.c
+          grep -n "sysctl_vfs_cache_pressure" fs/dcache.c
+          grep -n "page_cluster =" mm/swap.c
+          grep -n "watermark_scale_factor =" mm/page_alloc.c
+          grep -En "(dirty_background_ratio|vm_dirty_ratio) =" mm/page-writeback.c
+          grep -rn "use_spi_crc =" drivers/mmc/core/
+          grep -n "GENTLE_FAIR_SLEEPERS" kernel/sched/features.h
+
       - name: Compile Kernel (${{ matrix.variant }})
         run: |
           set -o pipefail
@@ -85,7 +118,6 @@ jobs:
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/ld.lld
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/aarch64-linux-gnu-ld
 
-          # Verifikasi linker ARM64 valid sebelum mulai compile
           aarch64-linux-gnu-ld.bfd --version
 
           export ARCH=arm64
@@ -114,15 +146,33 @@ jobs:
             -e CONFIG_LRU_GEN \
             -e CONFIG_LRU_GEN_ENABLED
 
-          # 3. Battery & Power Efficiency Management
+          # 3. CPU Governor & Battery Efficiency (Daily + Light Gaming)
           scripts/config --file out/.config \
+            -e CONFIG_CPU_FREQ_GOV_SCHEDUTIL \
+            -e CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL \
             -e CONFIG_NO_HZ_IDLE \
             -e CONFIG_HIGH_RES_TIMERS \
             -e CONFIG_WQ_POWER_EFFICIENT_DEFAULT \
             -e CONFIG_PM_AUTOSLEEP \
             -e CONFIG_PM_WAKELOCKS
 
-          # 4. Isolasi Varian NoKSU
+          # 4. Network Latency (TCP BBR & FQ Qdisc)
+          scripts/config --file out/.config \
+            -e CONFIG_NET_SCH_FQ \
+            -e CONFIG_NET_SCH_FQ_CODEL \
+            -e CONFIG_TCP_CONG_ADVANCED \
+            -e CONFIG_TCP_CONG_BBR \
+            -e CONFIG_DEFAULT_BBR \
+            --set-str CONFIG_DEFAULT_TCP_CONG "bbr"
+
+          # 5. Strip Debug Overhead (Hemat RAM & CPU)
+          scripts/config --file out/.config \
+            -d CONFIG_SCHED_DEBUG \
+            -d CONFIG_FTRACE \
+            -d CONFIG_FUNCTION_TRACER \
+            -d CONFIG_DEBUG_FS
+
+          # 6. Isolasi Varian NoKSU
           if [ "${{ matrix.variant }}" == "NoKSU" ]; then
             scripts/config --file out/.config -d CONFIG_KSU
           fi
@@ -158,7 +208,7 @@ jobs:
             exit 1
           fi
 
-          # Buat init.yahiko.rc di overlay.d AnyKernel3 untuk ZRAM LZ4, MGLRU & VM Sysctl
+          # Buat init.yahiko.rc di overlay.d AnyKernel3
           mkdir -p AnyKernel3-Certus/overlay.d
           cat << 'EOF' > AnyKernel3-Certus/overlay.d/init.yahiko.rc
           on property:sys.boot_completed=1
@@ -177,6 +227,19 @@ jobs:
               write /proc/sys/vm/stat_interval 10
               write /proc/sys/vm/min_free_kbytes 16384
 
+              # Network TCP BBR & FQ
+              write /proc/sys/net/core/default_qdisc fq
+              write /proc/sys/net/ipv4/tcp_congestion_control bbr
+
+              # eMMC 5.1 I/O & CRC Optimization
+              write /sys/module/mmc_core/parameters/use_spi_crc 0
+              write /sys/block/mmcblk0/queue/iostats 0
+              write /sys/block/mmcblk0/queue/read_ahead_kb 128
+              write /sys/block/mmcblk0/queue/nr_requests 64
+
+              # UI & Touch Responsiveness (Disable Gentle Fair Sleepers)
+              write /sys/kernel/debug/sched_features NO_GENTLE_FAIR_SLEEPERS
+
               # ZRAM 1.5GB LZ4
               exec - root root -- /system/bin/sh -c "swapoff /dev/block/zram0; echo 1 > /sys/block/zram0/reset; echo lz4 > /sys/block/zram0/comp_algorithm; echo 4 > /sys/block/zram0/max_comp_streams; echo 1610612736 > /sys/block/zram0/disksize; mkswap /dev/block/zram0; swapon /dev/block/zram0 -p 32758"
           EOF
@@ -188,12 +251,10 @@ jobs:
           sed -i "s|block=.*|block=/dev/block/platform/bootdevice/by-name/boot;|g" AnyKernel3-Certus/anykernel.sh
           sed -i "s|is_slot_device=.*|is_slot_device=0;|g" AnyKernel3-Certus/anykernel.sh
 
-          # Verifikasi hasil perubahan anykernel.sh di log Actions
-          grep -E "^(kernel\.string|do\.devicecheck|block|is_slot_device)=" AnyKernel3-Certus/anykernel.sh
-
-          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3-Certus/anykernel.sh
+          # Verifikasi dukungan overlay.d & hasil konfigurasi anykernel.sh
           grep -q "write_boot" AnyKernel3-Certus/anykernel.sh || echo "WARNING: anykernel.sh tidak memakai write_boot!"
-          grep -q "overlay.d" AnyKernel3-Certus/tools/ak3-core.sh || echo "WARNING: ak3-core.sh versi lama, belum mendukung overlay.d!"
+          grep -q "overlay.d" AnyKernel3-Certus/tools/ak3-core.sh || echo "WARNING: ak3-core.sh belum mendukung overlay.d!"
+          grep -E "^(kernel\.string|do\.devicecheck|block|is_slot_device)=" AnyKernel3-Certus/anykernel.sh
 
           cd AnyKernel3-Certus
           zip -r9 "../${ZIP_NAME}" . -x ".git*" "README.md" "*placeholder"
