@@ -1,4 +1,4 @@
-name: Yahiko Kernel(CERTUS)
+name: Yahiko Kernel(CERTUS) ARM64
 
 on:
   workflow_dispatch: # Agar bisa dijalankan manual lewat tombol "Run workflow" di GitHub
@@ -87,10 +87,10 @@ jobs:
           sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3-Certus/anykernel.sh
 
           cd AnyKernel3-Certus
-          zip -r9 ../ZexxaKernel-Certus.zip * -x .git README.md *placeholder
+          zip -r9 ../Yahiko-Certus.zip * -x .git README.md *placeholder
 
       - name: Upload Kernel Zip
         uses: actions/upload-artifact@v4
         with:
-          name: ZexxaKernel-Certus
-          path: ZexxaKernel-Certus.zip
+          name: Yahiko-Certus
+          path: Yahiko-Certus.zip
