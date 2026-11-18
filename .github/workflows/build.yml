@@ -165,14 +165,7 @@ jobs:
             -e CONFIG_DEFAULT_BBR \
             --set-str CONFIG_DEFAULT_TCP_CONG "bbr"
 
-          # 5. Strip Debug Overhead (Hemat RAM & CPU)
-          scripts/config --file out/.config \
-            -d CONFIG_SCHED_DEBUG \
-            -d CONFIG_FTRACE \
-            -d CONFIG_FUNCTION_TRACER \
-            -d CONFIG_DEBUG_FS
-
-          # 6. Isolasi Varian NoKSU
+          # 5. Isolasi Varian NoKSU
           if [ "${{ matrix.variant }}" == "NoKSU" ]; then
             scripts/config --file out/.config -d CONFIG_KSU
           fi
