@@ -6,28 +6,48 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [NoKSU, KSU]
+
     steps:
+      - name: Set Build Timestamp (WIB)
+        run: |
+          echo "BUILD_TIME=$(TZ='Asia/Jakarta' date '+%Y%m%d-%H%M')" >> $GITHUB_ENV
+
       - name: Checkout Kernel Source
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
           submodules: recursive
 
-      - name: Setup KernelSU
-        run: |
-          curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
-          if [ -d "KernelSU/.git" ]; then
-            git -C KernelSU fetch --unshallow || true
-            git -C KernelSU fetch --tags || true
-          fi
+      - name: Cache & Install Dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip unzip zlib1g-dev python3 binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
+          version: 1.0
 
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
-          sudo ln -sf /usr/bin/python3 /usr/bin/python
+      - name: Symlink Python
+        run: sudo ln -sf /usr/bin/python3 /usr/bin/python
+
+      - name: Setup ccache (${{ matrix.variant }})
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-ccache-${{ matrix.variant }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-${{ matrix.variant }}-
+
+      - name: Cache Proton Clang
+        id: cache-clang
+        uses: actions/cache@v4
+        with:
+          path: clang
+          key: ${{ runner.os }}-proton-clang-v1
 
       - name: Clone Toolchain (Proton Clang)
+        if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
           git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang
 
@@ -48,8 +68,22 @@ jobs:
             chmod +x scripts/fetch-latest-wireguard.sh
           fi
 
-      - name: Compile Kernel
+      - name: Setup KernelSU
+        if: matrix.variant == 'KSU'
         run: |
+          curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
+
+      - name: Apply Safe CPU OC Patch (2.15 GHz)
+        run: |
+          OPP_FILES=$(find drivers/misc/mediatek/base/power/ -name "*cpufreq*opp*.h" -o -name "*cpufreq*platform*.h" 2>/dev/null)
+          for f in $OPP_FILES; do
+            sed -i 's/2001000/2150000/g' "$f"
+            sed -i 's/2000000/2150000/g' "$f"
+          done
+
+      - name: Compile Kernel (${{ matrix.variant }})
+        run: |
+          set -o pipefail
           rm -f $PWD/clang/bin/ld $PWD/clang/bin/ld.lld $PWD/clang/bin/aarch64-linux-gnu-ld
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/ld.lld
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/aarch64-linux-gnu-ld
@@ -57,11 +91,47 @@ jobs:
           export ARCH=arm64
           export SUBARCH=arm64
           export PATH="$PWD/clang/bin:$PATH"
+          export USE_CCACHE=1
+          export CCACHE_DIR=~/.ccache
+          ccache -M 5G
+          ccache -z
 
           make O=out ARCH=arm64 certus_defconfig
+
+          # 1. Localversion
+          scripts/config --file out/.config \
+            --set-str CONFIG_LOCALVERSION "-Yahiko-Certus-${{ matrix.variant }}" \
+            -d CONFIG_LOCALVERSION_AUTO
+
+          # 2. Memory Management (ZRAM LZ4 & MGLRU)
+          scripts/config --file out/.config \
+            -e CONFIG_SWAP \
+            -e CONFIG_ZSMALLOC \
+            -e CONFIG_ZRAM \
+            -e CONFIG_CRYPTO_LZ4 \
+            -e CONFIG_CRYPTO_LZ4HC \
+            -e CONFIG_ZRAM_DEF_COMP_LZ4 \
+            -e CONFIG_LRU_GEN \
+            -e CONFIG_LRU_GEN_ENABLED
+
+          # 3. Battery & Power Efficiency Management
+          scripts/config --file out/.config \
+            -e CONFIG_NO_HZ_IDLE \
+            -e CONFIG_HIGH_RES_TIMERS \
+            -e CONFIG_WQ_POWER_EFFICIENT_DEFAULT \
+            -e CONFIG_PM_AUTOSLEEP \
+            -e CONFIG_PM_WAKELOCKS
+
+          # 4. Isolasi Varian NoKSU
+          if [ "${{ matrix.variant }}" == "NoKSU" ]; then
+            scripts/config --file out/.config -d CONFIG_KSU
+          fi
+
+          make O=out ARCH=arm64 olddefconfig
+
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
-            CC=clang \
+            CC="ccache clang" \
             HOSTCC="gcc -B/usr/bin" \
             LD=aarch64-linux-gnu-ld.bfd \
             AR=llvm-ar \
@@ -71,10 +141,14 @@ jobs:
             STRIP=llvm-strip \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- 2>&1 | tee build.log
 
-      - name: Pack with AnyKernel3
+          ccache -s
+
+      - name: Inject Runtime Tweaks & Pack Flashable Zip (${{ matrix.variant }})
         run: |
+          ZIP_NAME="Yahiko-Certus-${{ matrix.variant }}-${{ env.BUILD_TIME }}.zip"
+
           if [ -f out/arch/arm64/boot/Image.gz-dtb ]; then
             cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3-Certus/
           elif [ -f out/arch/arm64/boot/Image.gz ]; then
@@ -84,13 +158,78 @@ jobs:
             exit 1
           fi
 
+          # Buat init.yahiko.rc di ramdisk AnyKernel3 untuk ZRAM LZ4, MGLRU & VM Sysctl
+          mkdir -p AnyKernel3-Certus/ramdisk
+          cat << 'EOF' > AnyKernel3-Certus/ramdisk/init.yahiko.rc
+          on property:sys.boot_completed=1
+              # MGLRU Tuning
+              write /sys/kernel/mm/lru_gen/enabled 7
+              write /sys/kernel/mm/lru_gen/min_ttl_ms 1000
+
+              # VM Sysctl Tuning (RAM 2GB)
+              write /proc/sys/vm/swappiness 130
+              write /proc/sys/vm/page-cluster 0
+              write /proc/sys/vm/vfs_cache_pressure 80
+              write /proc/sys/vm/watermark_scale_factor 30
+              write /proc/sys/vm/watermark_boost_factor 0
+              write /proc/sys/vm/dirty_background_ratio 5
+              write /proc/sys/vm/dirty_ratio 15
+              write /proc/sys/vm/stat_interval 10
+              write /proc/sys/vm/min_free_kbytes 16384
+
+              # ZRAM 1.5GB LZ4
+              exec - root root -- /system/bin/sh -c "swapoff /dev/block/zram0; echo 1 > /sys/block/zram0/reset; echo lz4 > /sys/block/zram0/comp_algorithm; echo 4 > /sys/block/zram0/max_comp_streams; echo 1610612736 > /sys/block/zram0/disksize; mkswap /dev/block/zram0; swapon /dev/block/zram0 -p 32758"
+          EOF
+          chmod 0750 AnyKernel3-Certus/ramdisk/init.yahiko.rc
+
+          # Daftarkan import /init.yahiko.rc ke init.rc lewat anykernel.sh jika belum ada
+          if ! grep -q "init.yahiko.rc" AnyKernel3-Certus/anykernel.sh; then
+            sed -i '/write_boot;/i insert_line init.rc "init.yahiko.rc" after "import /init.environ.rc" "import /init.yahiko.rc";' AnyKernel3-Certus/anykernel.sh
+          fi
+
           sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3-Certus/anykernel.sh
 
           cd AnyKernel3-Certus
-          zip -r9 ../Yahiko-Certus.zip * -x .git README.md *placeholder
+          zip -r9 "../${ZIP_NAME}" . -x ".git*" "README.md" "*placeholder"
+          cd ..
 
-      - name: Upload Kernel Zip
+          unzip -l "${ZIP_NAME}"
+
+      - name: Send Flashable Zip to Telegram (${{ matrix.variant }})
+        env:
+          TG_BOT: ${{ secrets.TG_BOT }}
+          TG_ID: ${{ secrets.TG_ID }}
+        run: |
+          ZIP_FILE="Yahiko-Certus-${{ matrix.variant }}-${{ env.BUILD_TIME }}.zip"
+          MD5=$(md5sum "${ZIP_FILE}" | awk '{print $1}')
+
+          curl -F document=@"${ZIP_FILE}" \
+            -F "chat_id=${TG_ID}" \
+            -F "parse_mode=Markdown" \
+            -F "caption=\`${MD5}\`" \
+            "https://api.telegram.org/bot${TG_BOT}/sendDocument"
+
+      - name: Send Error Log to Telegram (${{ matrix.variant }})
+        if: failure()
+        env:
+          TG_BOT: ${{ secrets.TG_BOT }}
+          TG_ID: ${{ secrets.TG_ID }}
+        run: |
+          if [ -f build.log ]; then
+            curl -F document=@"build.log" \
+              -F "chat_id=${TG_ID}" \
+              -F "parse_mode=Markdown" \
+              -F "caption=❌ Build *Yahiko-Certus (${{ matrix.variant }})* gagal." \
+              "https://api.telegram.org/bot${TG_BOT}/sendDocument"
+          else
+            curl -X POST "https://api.telegram.org/bot${TG_BOT}/sendMessage" \
+              -d "chat_id=${TG_ID}" \
+              -d "parse_mode=Markdown" \
+              -d "text=❌ Build *Yahiko-Certus (${{ matrix.variant }})* gagal sebelum tahap kompilasi."
+          fi
+
+      - name: Upload Kernel Zip (${{ matrix.variant }})
         uses: actions/upload-artifact@v4
         with:
-          name: Yahiko-Certus
-          path: Yahiko-Certus.zip
+          name: Yahiko-Certus-${{ matrix.variant }}-${{ env.BUILD_TIME }}
+          path: Yahiko-Certus-${{ matrix.variant }}-${{ env.BUILD_TIME }}.zip
