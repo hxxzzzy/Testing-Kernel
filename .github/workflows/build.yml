@@ -182,6 +182,15 @@ jobs:
           EOF
           chmod 0750 AnyKernel3-Certus/overlay.d/init.yahiko.rc
 
+          # Sesuaikan kernel.string, target block, dan konfigurasi anykernel.sh
+          sed -i "s|kernel.string=.*|kernel.string=Yahiko Kernel (${{ matrix.variant }}) by zexxadev;|g" AnyKernel3-Certus/anykernel.sh
+          sed -i "s|do.devicecheck=.*|do.devicecheck=0|g" AnyKernel3-Certus/anykernel.sh
+          sed -i "s|block=.*|block=/dev/block/platform/bootdevice/by-name/boot;|g" AnyKernel3-Certus/anykernel.sh
+          sed -i "s|is_slot_device=.*|is_slot_device=0;|g" AnyKernel3-Certus/anykernel.sh
+
+          # Verifikasi hasil perubahan anykernel.sh di log Actions
+          grep -E "^(kernel\.string|do\.devicecheck|block|is_slot_device)=" AnyKernel3-Certus/anykernel.sh
+
           sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3-Certus/anykernel.sh
           grep -q "write_boot" AnyKernel3-Certus/anykernel.sh || echo "WARNING: anykernel.sh tidak memakai write_boot!"
           grep -q "overlay.d" AnyKernel3-Certus/tools/ak3-core.sh || echo "WARNING: ak3-core.sh versi lama, belum mendukung overlay.d!"
