@@ -109,7 +109,7 @@ jobs:
             -e CONFIG_ZSMALLOC \
             -e CONFIG_ZRAM \
             -e CONFIG_CRYPTO_LZ4 \
-            -e CONFIG_CRYPTO_LZ4HC \
+            -d CONFIG_CRYPTO_LZ4HC \
             -e CONFIG_ZRAM_DEF_COMP_LZ4 \
             -e CONFIG_LRU_GEN \
             -e CONFIG_LRU_GEN_ENABLED
