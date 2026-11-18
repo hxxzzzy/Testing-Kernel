@@ -183,10 +183,10 @@ jobs:
           chmod 0750 AnyKernel3-Certus/overlay.d/init.yahiko.rc
 
           sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3-Certus/anykernel.sh
-
-          cd AnyKernel3-Certus
           grep -q "write_boot" AnyKernel3-Certus/anykernel.sh || echo "WARNING: anykernel.sh tidak memakai write_boot!"
           grep -q "overlay.d" AnyKernel3-Certus/tools/ak3-core.sh || echo "WARNING: ak3-core.sh versi lama, belum mendukung overlay.d!"
+
+          cd AnyKernel3-Certus
           zip -r9 "../${ZIP_NAME}" . -x ".git*" "README.md" "*placeholder"
           cd ..
 
