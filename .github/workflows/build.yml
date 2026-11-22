@@ -44,6 +44,27 @@ jobs:
         run: |
           curl -LSs "$KSU_SETUP_URL" | bash -s -- $KSU_REF
 
+      - name: Disable BakaSU preinit (needs CLANG_FLAGS this non-GKI tree doesn't export)
+        run: |
+          # preinit_runner.mk always tries to cross-compile and link a tiny
+          # standalone ELF ("runner.elf") using $(CLANG_FLAGS), a variable
+          # only GKI-style kernels define. On this vendor 4.9 tree it's
+          # empty, so clang falls back to the host target (x86_64) and the
+          # aarch64 linker then rejects the object ("Relocations in generic
+          # ELF (EM: 62)"). Preinit is an optional extra (hides the root
+          # hook at early init); it's not needed for su/root to work, so we
+          # replace the fragment with its own "disabled" branch instead of
+          # debugging the cross-compile.
+          F=drivers/kernelsu/tools/code_generation/preinit_runner/preinit_runner.mk
+          test -f "$F"
+          cat > "$F" <<'EOF'
+          # Preinit explicitly disabled: this non-GKI tree has no CLANG_FLAGS
+          # wired up for the preinit runner's standalone cross-compile step.
+          $(warning -- BakaSU: preinit disabled by build patch (no CLANG_FLAGS on this tree))
+          ccflags-y += -DKSU_NO_PREINIT
+          EOF
+          cat "$F"
+
       - name: Enable KernelSU options in defconfig
         run: |
           cat >> arch/arm64/configs/$DEFCONFIG <<'EOF'
@@ -62,11 +83,10 @@ jobs:
           export ARCH=arm64
           export SUBARCH=arm64
           clang --version | head -n 1
-          cat drivers/kernelsu/preinit/Makefile
-          MAKE_ARGS="O=out ARCH=arm64 CC=clang LD=aarch64-linux-gnu-ld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
+          MAKE_ARGS="O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
           make $MAKE_ARGS $DEFCONFIG 2>&1 | tee defconfig.log
           make $MAKE_ARGS -j"$(nproc)" 2>&1 | tee build.log
-          
+
       - name: Package AnyKernel3 zip
         run: |
           git clone --depth=1 "$ANYKERNEL_REPO" AnyKernel3
