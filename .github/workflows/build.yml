@@ -1,0 +1,86 @@
+name: Build Kernel (certus) + ReSukiSU
+
+on:
+  workflow_dispatch:
+
+env:
+  DEFCONFIG: certus_defconfig
+  # Root manager setup script. ReSukiSU is the one that still supports non-GKI.
+  # If you want to try SukiSU Ultra instead, swap the URL (it may fail on 4.9).
+  KSU_SETUP_URL: https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh
+  KSU_REF: ""
+  ANYKERNEL_REPO: https://github.com/osm0sis/AnyKernel3
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison flex libssl-dev libelf-dev make zip curl git cpio xz-utils \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+
+      - name: Get Proton clang
+        run: |
+          git clone --depth=1 https://github.com/kdrag0n/proton-clang "$HOME/proton-clang"
+          echo "$HOME/proton-clang/bin" >> "$GITHUB_PATH"
+
+      - name: Integrate ReSukiSU
+        run: |
+          curl -LSs "$KSU_SETUP_URL" | bash -s -- $KSU_REF
+
+      - name: Enable KernelSU options in defconfig
+        run: |
+          cat >> arch/arm64/configs/$DEFCONFIG <<'EOF'
+          CONFIG_KSU=y
+          CONFIG_KPROBES=y
+          CONFIG_HAVE_KPROBES=y
+          CONFIG_KPROBE_EVENTS=y
+          EOF
+
+      - name: Build kernel
+        run: |
+          set -o pipefail
+          export ARCH=arm64
+          export SUBARCH=arm64
+          clang --version | head -n 1
+          MAKE_ARGS="O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
+          make $MAKE_ARGS $DEFCONFIG 2>&1 | tee defconfig.log
+          make $MAKE_ARGS -j"$(nproc)" 2>&1 | tee build.log
+
+      - name: Package AnyKernel3 zip
+        run: |
+          git clone --depth=1 "$ANYKERNEL_REPO" AnyKernel3
+          IMG=""
+          for f in Image.gz-dtb Image.gz Image; do
+            if [ -f "out/arch/arm64/boot/$f" ]; then IMG="$f"; break; fi
+          done
+          echo "Using image: $IMG"
+          cp "out/arch/arm64/boot/$IMG" AnyKernel3/
+          cd AnyKernel3
+          rm -rf .git
+          zip -r9 ../certus-resukisu-kernel.zip . -x '*.git*'
+
+      - name: Upload kernel zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: certus-resukisu-kernel
+          path: certus-resukisu-kernel.zip
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            defconfig.log
+            build.log
+          if-no-files-found: ignore
+          
