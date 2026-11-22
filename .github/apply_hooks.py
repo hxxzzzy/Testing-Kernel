@@ -98,6 +98,31 @@ patch("fs/stat.c",
       "\treturn error;",
       H + "\tksu_handle_newfstat_ret(&fd, &statbuf);\n" + E + "\n")
 
+def insert_before(path, func, text):
+    s = rd(path)
+    if s.count(func) != 1:
+        return False
+    i = s.index(func)
+    wr(path, s[:i] + text + s[i:])
+    return True
+
+# 32-bit / compat stat hooks (BakaSU's check wants fstat64 on this kernel)
+FSTAT64 = "SYSCALL_DEFINE2(fstat64, unsigned long, fd, struct stat64 __user *, statbuf)"
+if not insert_before("fs/stat.c", FSTAT64,
+        H + "extern void ksu_handle_fstat64_ret(unsigned long *fd, struct stat64 __user **statbuf_ptr);\n" + E):
+    fail("fs/stat.c: fstat64 function not found exactly once")
+patch("fs/stat.c", FSTAT64, "\treturn error;",
+      H + "\tksu_handle_fstat64_ret(&fd, &statbuf);\n" + E + "\n")
+
+FSTATAT64 = "SYSCALL_DEFINE4(fstatat64, int, dfd, const char __user *, filename,"
+s_ = rd("fs/stat.c")
+if s_.count(FSTATAT64) == 1:
+    patch("fs/stat.c", FSTATAT64,
+          "\terror = vfs_fstatat(dfd, filename, &stat, flag);",
+          H + "\tksu_handle_stat(&dfd, &filename, &flag);\n" + E)
+else:
+    print("note: fstatat64 not found, skipped (only needed for 32-bit su)")
+
 patch("kernel/reboot.c",
       "SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,",
       "\t/* We only trust the superuser with rebooting the system. */",
@@ -105,4 +130,4 @@ patch("kernel/reboot.c",
       H + "extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);\n" + E)
 
 print("ALL MANUAL HOOKS APPLIED")
-  
+        
