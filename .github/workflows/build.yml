@@ -62,6 +62,7 @@ jobs:
           export ARCH=arm64
           export SUBARCH=arm64
           clang --version | head -n 1
+          cat drivers/kernelsu/preinit/Makefile
           MAKE_ARGS="O=out ARCH=arm64 CC=clang LD=aarch64-linux-gnu-ld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
           make $MAKE_ARGS $DEFCONFIG 2>&1 | tee defconfig.log
           make $MAKE_ARGS -j"$(nproc)" 2>&1 | tee build.log
