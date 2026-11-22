@@ -32,6 +32,17 @@ jobs:
           git clone --depth=1 https://github.com/kdrag0n/proton-clang "$HOME/proton-clang"
           echo "$HOME/proton-clang/bin" >> "$GITHUB_PATH"
 
+      - name: Remove old KSU hook from input.c
+        run: |
+          python3 - <<'PY'
+          import re
+          p = "drivers/input/input.c"
+          s = open(p).read()
+          s2, n = re.subn(r'[ \t]*#ifdef CONFIG_KSU\b.*?#endif[ \t]*\n', '', s, flags=re.S)
+          print("Removed blocks:", n)
+          open(p, "w").write(s2)
+          PY
+
       - name: Integrate ReSukiSU
         run: |
           curl -LSs "$KSU_SETUP_URL" | bash -s -- $KSU_REF
@@ -40,9 +51,12 @@ jobs:
         run: |
           cat >> arch/arm64/configs/$DEFCONFIG <<'EOF'
           CONFIG_KSU=y
-          CONFIG_KPROBES=y
-          CONFIG_HAVE_KPROBES=y
-          CONFIG_KPROBE_EVENTS=y
+          CONFIG_KSU_MANUAL_HOOK=y
+          CONFIG_KSU_MANUAL_HOOK_AUTO_INPUT_HOOK=y
+          CONFIG_KSU_MANUAL_HOOK_AUTO_SETUID_HOOK=y
+          CONFIG_KSU_MANUAL_HOOK_AUTO_INITRC_HOOK=y
+          CONFIG_KALLSYMS=y
+          CONFIG_KALLSYMS_ALL=y
           EOF
 
       - name: Build kernel
