@@ -76,7 +76,7 @@ jobs:
           CONFIG_KALLSYMS=y
           CONFIG_KALLSYMS_ALL=y
           CONFIG_LOCALVERSION="-CalxClaude-Certus-BakaSU"
-          CONFIG_KSU_FULL_NAME_FORMAT="BakaSU %KSU_VERSION% by Cal & Claude (%REPO_NAME% %COMMIT_SHA%)"
+          CONFIG_KSU_FULL_NAME_FORMAT="CalxClaude-BakaSU-%KSU_VERSION%-%COMMIT_SHA%"
           EOF
 
       - name: Build kernel
