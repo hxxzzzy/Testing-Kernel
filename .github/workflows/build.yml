@@ -32,16 +32,13 @@ jobs:
           git clone --depth=1 https://github.com/kdrag0n/proton-clang "$HOME/proton-clang"
           echo "$HOME/proton-clang/bin" >> "$GITHUB_PATH"
 
-      - name: Remove old KSU hook from input.c
+      - name: Remove old KSU hooks and add BakaSU manual hooks
         run: |
-          python3 - <<'PY'
-          import re
-          p = "drivers/input/input.c"
-          s = open(p).read()
-          s2, n = re.subn(r'[ \t]*#ifdef CONFIG_KSU\b.*?#endif[ \t]*\n', '', s, flags=re.S)
-          print("Removed blocks:", n)
-          open(p, "w").write(s2)
-          PY
+          python3 .github/apply_hooks.py
+
+      - name: List any leftover KSU lines (info only)
+        run: |
+          grep -rIn "ksu_\|CONFIG_KSU" fs kernel drivers/input security include || true
 
       - name: Integrate ReSukiSU
         run: |
