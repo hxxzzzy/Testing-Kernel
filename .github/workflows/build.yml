@@ -36,6 +36,10 @@ jobs:
         run: |
           python3 .github/apply_hooks.py
 
+      -name: Overclocking trash CPU and GPU
+        run: |
+          python3 .github/apply_oc_table.py
+
       - name: List any leftover KSU lines (info only)
         run: |
           grep -rIn "ksu_\|CONFIG_KSU" fs kernel drivers/input security include || true
@@ -75,8 +79,8 @@ jobs:
           CONFIG_KSU_MANUAL_HOOK_AUTO_INITRC_HOOK=y
           CONFIG_KALLSYMS=y
           CONFIG_KALLSYMS_ALL=y
-          CONFIG_LOCALVERSION="-CalxClaude-Certus-BakaSU"
-          CONFIG_KSU_FULL_NAME_FORMAT="CalxClaude-BakaSU-%KSU_VERSION%-%COMMIT_SHA%"
+          CONFIG_LOCALVERSION="-NebulaCal-ULTRA-Certus+BakaSu"
+          CONFIG_KSU_FULL_NAME_FORMAT="-NebulaCal-ULTRA-Certus+BakaSU-%KSU_VERSION%-%COMMIT_SHA%"
           EOF
 
       - name: Build kernel
