@@ -36,7 +36,7 @@ jobs:
         run: |
           python3 .github/apply_hooks.py
 
-      -name: Overclocking trash CPU and GPU
+      - name: Overclocking trash CPU and GPU
         run: |
           python3 .github/apply_oc_table.py
 
