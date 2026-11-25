@@ -12,7 +12,7 @@ Why this is safe-ish to do as a straight #define swap:
   table for the SB bin's top 8 FREQ+VOLT defines is a clean,
   self-consistent substitution -- not an invented table.
 - For the GPU, segment2 (our GPU segment) tops out at 650000 KHz @
-  80000 (0.80V). Segment4 (MT6762D bin) already runs 730000 KHz at
+  80000 (0.80V). Segment4 (MT6765 bin) already runs 680000 KHz at
   that exact same 80000 voltage, on the same silicon family. So we
   raise FREQ0 only and leave the proven voltage alone.
 
@@ -73,7 +73,7 @@ CPU_SWAPS = [
 ]
 
 GPU_SWAPS = [
-    (r"#define SEG2_GPU_DVFS_FREQ0\s+\(650000\)", "#define SEG2_GPU_DVFS_FREQ0\t\t\t(730000)"),
+    (r"#define SEG2_GPU_DVFS_FREQ0\s+\(650000\)", "#define SEG2_GPU_DVFS_FREQ0\t\t\t(680000)"),
 ]
 
 
@@ -93,4 +93,4 @@ def apply_swaps(path, swaps):
 
 apply_swaps(CPU_OPP, CPU_SWAPS)
 apply_swaps(GPU_CORE, GPU_SWAPS)
-print("OC ceiling applied: Big -> 2501MHz, Little -> 1901MHz, GPU -> 730MHz (table ceiling only; FKM still controls what you actually run).")
+print("OC ceiling applied: Big -> 2501MHz, Little -> 1901MHz, GPU -> 680MHz (table ceiling only; FKM still controls what you actually run).")
