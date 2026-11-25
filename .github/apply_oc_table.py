@@ -12,7 +12,7 @@ Why this is safe-ish to do as a straight #define swap:
   table for the SB bin's top 8 FREQ+VOLT defines is a clean,
   self-consistent substitution -- not an invented table.
 - For the GPU, segment2 (our GPU segment) tops out at 650000 KHz @
-  80000 (0.80V). Segment4 (MT6762D bin) already runs 680000 KHz at
+  80000 (0.80V). Segment4 (MT6762D bin) already runs 730000 KHz at
   that exact same 80000 voltage, on the same silicon family. So we
   raise FREQ0 only and leave the proven voltage alone.
 
@@ -43,7 +43,7 @@ CPU_SWAPS = [
     (r"#define CPU_DVFS_FREQ6_L_C62\s+1809000", "#define CPU_DVFS_FREQ6_L_C62    1926000"),
     (r"#define CPU_DVFS_FREQ7_L_C62\s+1779000", "#define CPU_DVFS_FREQ7_L_C62    1838000"),
     # Big cluster (L) voltage, C62 top-8 -> SB top-8 (10uV units)
-    (r"#define CPU_DVFS_VOLT0_VPROC_L_C62\s+111875", "#define CPU_DVFS_VOLT0_VPROC_L_C62    111875"),
+    (r"#define CPU_DVFS_VOLT0_VPROC_L_C62\s+111875", "#define CPU_DVFS_VOLT0_VPROC_L_C62    112000"),  # literal MAX_VPROC_VOLT, still in-spec
     (r"#define CPU_DVFS_VOLT1_VPROC_L_C62\s+106875", "#define CPU_DVFS_VOLT1_VPROC_L_C62    107500"),
     (r"#define CPU_DVFS_VOLT2_VPROC_L_C62\s+102500", "#define CPU_DVFS_VOLT2_VPROC_L_C62    103125"),
     (r"#define CPU_DVFS_VOLT3_VPROC_L_C62\s+98750",  "#define CPU_DVFS_VOLT3_VPROC_L_C62     98750"),
@@ -62,7 +62,7 @@ CPU_SWAPS = [
     (r"#define CPU_DVFS_FREQ6_LL_C62\s+1155000", "#define CPU_DVFS_FREQ6_LL_C62    1250000"),
     (r"#define CPU_DVFS_FREQ7_LL_C62\s+1102000", "#define CPU_DVFS_FREQ7_LL_C62    1150000"),
     # Little cluster (LL) voltage, C62 top-8 -> SB top-8
-    (r"#define CPU_DVFS_VOLT0_VPROC_LL_C62\s+111875", "#define CPU_DVFS_VOLT0_VPROC_LL_C62    111875"),
+    (r"#define CPU_DVFS_VOLT0_VPROC_LL_C62\s+111875", "#define CPU_DVFS_VOLT0_VPROC_LL_C62    112000"),  # literal MAX_VPROC_VOLT, still in-spec
     (r"#define CPU_DVFS_VOLT1_VPROC_LL_C62\s+106875", "#define CPU_DVFS_VOLT1_VPROC_LL_C62    107500"),
     (r"#define CPU_DVFS_VOLT2_VPROC_LL_C62\s+102500", "#define CPU_DVFS_VOLT2_VPROC_LL_C62    103125"),
     (r"#define CPU_DVFS_VOLT3_VPROC_LL_C62\s+98750",  "#define CPU_DVFS_VOLT3_VPROC_LL_C62     98750"),
@@ -72,12 +72,20 @@ CPU_SWAPS = [
     (r"#define CPU_DVFS_VOLT7_VPROC_LL_C62\s+83750",  "#define CPU_DVFS_VOLT7_VPROC_LL_C62     83750"),
 ]
 
-GPU_SWAPS = [
-    (r"#define SEG2_GPU_DVFS_FREQ0\s+\(650000\)", "#define SEG2_GPU_DVFS_FREQ0\t\t\t(680000)"),
-]
+# GPU bump REVERTED: mtk_gpufreq_core.h defines
+#   #define VGPU_MAX_VOLT (SEG3_GPU_DVFS_VOLT0)   // 80000 / 0.80V
+# as a hard ceiling for the whole chip family (not per-bin). 650MHz and
+# 730MHz both run at that same max voltage -- there's no headroom to give
+# the higher step. Confirmed unstable under real GPU load (3D game
+# crash-looping). 650MHz (stock) is this unit's real, stable GPU ceiling,
+# so we leave mtk_gpufreq_core.h untouched now.
+GPU_SWAPS = []
 
 
 def apply_swaps(path, swaps):
+    if not swaps:
+        print(f"Skipping {path}: no swaps defined (GPU OC reverted)")
+        return
     with open(path, "r") as f:
         text = f.read()
     for pattern, replacement in swaps:
@@ -93,4 +101,4 @@ def apply_swaps(path, swaps):
 
 apply_swaps(CPU_OPP, CPU_SWAPS)
 apply_swaps(GPU_CORE, GPU_SWAPS)
-print("OC ceiling applied: Big -> 2501MHz, Little -> 1901MHz, GPU -> 680MHz (table ceiling only; FKM still controls what you actually run).")
+print("OC ceiling applied: Big -> 2501MHz, Little -> 1901MHz (table ceiling only; FKM still controls what you actually run). GPU stays stock 650MHz -- confirmed hard voltage-ceiling limited, not worth chasing further.")
