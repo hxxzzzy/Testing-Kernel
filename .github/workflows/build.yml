@@ -36,9 +36,13 @@ jobs:
         run: |
           python3 .github/apply_hooks.py
 
-      - name: Overclocking trash CPU and GPU
+      - name: Raise CPU/GPU OPP table ceiling (Big 2.5GHz / Little 1.9GHz / GPU 730MHz)
         run: |
           python3 .github/apply_oc_table.py
+
+      - name: I/O scheduler + GPU DVFS responsiveness tweaks
+        run: |
+          python3 .github/apply_perf_tweaks.py
 
       - name: List any leftover KSU lines (info only)
         run: |
@@ -79,8 +83,8 @@ jobs:
           CONFIG_KSU_MANUAL_HOOK_AUTO_INITRC_HOOK=y
           CONFIG_KALLSYMS=y
           CONFIG_KALLSYMS_ALL=y
-          CONFIG_LOCALVERSION="-NebulaCal-ULTRA-Certus+BakaSu"
-          CONFIG_KSU_FULL_NAME_FORMAT="-NebulaCal-ULTRA-Certus+BakaSU-%KSU_VERSION%-%COMMIT_SHA%"
+          CONFIG_LOCALVERSION="-CalxClaude-Certus-BakaSU"
+          CONFIG_KSU_FULL_NAME_FORMAT="CalxClaude-BakaSU-%KSU_VERSION%-%COMMIT_SHA%"
           EOF
 
       - name: Build kernel
