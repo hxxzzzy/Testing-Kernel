@@ -12,7 +12,7 @@ Why this is safe-ish to do as a straight #define swap:
   table for the SB bin's top 8 FREQ+VOLT defines is a clean,
   self-consistent substitution -- not an invented table.
 - For the GPU, segment2 (our GPU segment) tops out at 650000 KHz @
-  80000 (0.80V). Segment4 (MT6765 bin) already runs 680000 KHz at
+  80000 (0.80V). Segment4 (MT6762D bin) already runs 680000 KHz at
   that exact same 80000 voltage, on the same silicon family. So we
   raise FREQ0 only and leave the proven voltage alone.
 
