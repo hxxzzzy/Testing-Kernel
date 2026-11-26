@@ -72,14 +72,18 @@ CPU_SWAPS = [
     (r"#define CPU_DVFS_VOLT7_VPROC_LL_C62\s+83750",  "#define CPU_DVFS_VOLT7_VPROC_LL_C62     83750"),
 ]
 
-# GPU bump REVERTED: mtk_gpufreq_core.h defines
-#   #define VGPU_MAX_VOLT (SEG3_GPU_DVFS_VOLT0)   // 80000 / 0.80V
-# as a hard ceiling for the whole chip family (not per-bin). 650MHz and
-# 730MHz both run at that same max voltage -- there's no headroom to give
-# the higher step. Confirmed unstable under real GPU load (3D game
-# crash-looping). 650MHz (stock) is this unit's real, stable GPU ceiling,
-# so we leave mtk_gpufreq_core.h untouched now.
-GPU_SWAPS = []
+# GPU bump RESTORED: the earlier "730MHz crashes 8 Ball Pool online" data
+# point turned out to be a false lead -- the same crash reproduces
+# identically at stock 650MHz with zero GPU OC, so it's unrelated to this
+# frequency (likely an ad-SDK/app-side issue instead). No real evidence
+# 730MHz is unstable on this unit remains; VGPU_MAX_VOLT (0.80V) is still
+# the hard ceiling for the whole chip family, so 730MHz runs at the same
+# max voltage as 650MHz -- same risk class as before, just not contradicted
+# by evidence anymore. Still worth testing in isolation (a GPU benchmark/
+# stress app, away from 8 Ball Pool's online+ads path) to get a clean signal.
+GPU_SWAPS = [
+    (r"#define SEG2_GPU_DVFS_FREQ0\s+\(650000\)", "#define SEG2_GPU_DVFS_FREQ0\t\t\t(730000)"),
+]
 
 
 def apply_swaps(path, swaps):
@@ -101,4 +105,4 @@ def apply_swaps(path, swaps):
 
 apply_swaps(CPU_OPP, CPU_SWAPS)
 apply_swaps(GPU_CORE, GPU_SWAPS)
-print("OC ceiling applied: Big -> 2501MHz, Little -> 1901MHz (table ceiling only; FKM still controls what you actually run). GPU stays stock 650MHz -- confirmed hard voltage-ceiling limited, not worth chasing further.")
+print("OC ceiling applied: Big -> 2501MHz @ 1.12V, Little -> 1901MHz @ 1.12V, GPU -> 730MHz (table ceiling only; FKM still controls what you actually run).")
