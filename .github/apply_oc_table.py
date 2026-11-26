@@ -82,7 +82,7 @@ CPU_SWAPS = [
 # by evidence anymore. Still worth testing in isolation (a GPU benchmark/
 # stress app, away from 8 Ball Pool's online+ads path) to get a clean signal.
 GPU_SWAPS = [
-    (r"#define SEG2_GPU_DVFS_FREQ0\s+\(650000\)", "#define SEG2_GPU_DVFS_FREQ0\t\t\t(730000)"),
+    (r"#define SEG2_GPU_DVFS_FREQ0\s+\(650000\)", "#define SEG2_GPU_DVFS_FREQ0\t\t\t(680000)"),
 ]
 
 
@@ -105,4 +105,4 @@ def apply_swaps(path, swaps):
 
 apply_swaps(CPU_OPP, CPU_SWAPS)
 apply_swaps(GPU_CORE, GPU_SWAPS)
-print("OC ceiling applied: Big -> 2501MHz @ 1.12V, Little -> 1901MHz @ 1.12V, GPU -> 730MHz (table ceiling only; FKM still controls what you actually run).")
+print("OC ceiling applied: Big -> 2501MHz @ 1.12V, Little -> 1901MHz @ 1.12V, GPU -> 680MHz (table ceiling only; FKM still controls what you actually run).")
